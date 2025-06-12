@@ -11,19 +11,30 @@ import { formatCurrency } from './utils';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
+async function slowFetch(timeout, dataType, func) {
+    try {
+        console.log(`Slow fetching: ${dataType}...`);
+        await new Promise((resolve) => setTimeout(resolve, timeout));
+
+        const result = await func();
+        console.log(`${dataType} data fetch completed after ${timeout} ms.`);
+        return result;
+
+    } catch (error) {
+        console.error('Slow fetch error:', error);
+        throw new Error('Error in slow fetch.');
+    }
+}
+
 export async function fetchRevenue() {
   try {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const data = await sql<Revenue[]>`SELECT * FROM revenue`;
-
-    // console.log('Data fetch completed after 3 seconds.');
-
-    return data;
+    return await slowFetch(3000, 'Revenue',
+        async function () {
+            return await sql<Revenue[]>`SELECT * FROM revenue`;
+        });
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch revenue data.');
@@ -32,12 +43,23 @@ export async function fetchRevenue() {
 
 export async function fetchLatestInvoices() {
   try {
-    const data = await sql<LatestInvoiceRaw[]>`
-      SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      ORDER BY invoices.date DESC
-      LIMIT 5`;
+    const data = await slowFetch(2000, 'Invoices',
+        async function () {
+            return await sql<LatestInvoiceRaw[]>`
+              SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
+              FROM invoices
+              JOIN customers ON invoices.customer_id = customers.id
+              ORDER BY invoices.date DESC
+              LIMIT 5`;
+        });
+
+    // const data = await sql<LatestInvoiceRaw[]>`
+    //   SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
+    //   FROM invoices
+    //   JOIN customers ON invoices.customer_id = customers.id
+    //   ORDER BY invoices.date DESC
+    //   LIMIT 5`;
+    //
 
     const latestInvoices = data.map((invoice) => ({
       ...invoice,
@@ -62,11 +84,14 @@ export async function fetchCardData() {
          SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
          FROM invoices`;
 
-    const data = await Promise.all([
-      invoiceCountPromise,
-      customerCountPromise,
-      invoiceStatusPromise,
-    ]);
+    const data = await slowFetch(1000, 'Cards',
+        async function () {
+            return await Promise.all([
+              invoiceCountPromise,
+              customerCountPromise,
+              invoiceStatusPromise,
+            ]);
+        });
 
     const numberOfInvoices = Number(data[0][0].count ?? '0');
     const numberOfCustomers = Number(data[1][0].count ?? '0');
