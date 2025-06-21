@@ -11,7 +11,7 @@ import { formatCurrency } from './utils';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
-async function slowFetch(timeout, dataType, func) {
+async function slowFetch(timeout: number, dataType: string, func: () => Promise<any>) {
     try {
         console.log(`Slow fetching: ${dataType}...`);
         await new Promise((resolve) => setTimeout(resolve, timeout));
