@@ -4,6 +4,8 @@ import { z } from 'zod';
 import postgres from 'postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { signIn } from '@/auth';
+import { AuthError } from 'next-auth';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
@@ -93,7 +95,7 @@ export async function updateInvoice(id: string, formData: FormData) {
         WHERE id = ${id}
       `;
   } catch (error) {
-      console.error('Invoice updatind error:', error);
+      console.error('Invoice updating error:', error);
       throw new Error('Error by updating invoice.');
   }
 
@@ -110,4 +112,25 @@ export async function deleteInvoice(id: string) {
       console.error('Invoice deletion error:', error);
       throw new Error('Error by invoice deletion.');
     }
+}
+
+export async function authenticate(
+  prevState: string | undefined,
+  formData: FormData,
+) {
+  try {
+    await signIn('credentials', formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case 'CredentialsSignin':
+          return 'Invalid credentials.';
+        default:
+          console.log('Error: ' + error)
+          // return 'Something went wrong.';
+          return '' + error;
+      }
+    }
+    throw error;
+  }
 }
